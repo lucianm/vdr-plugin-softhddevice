@@ -21,6 +21,11 @@
 //////////////////////////////////////////////////////////////////////////////
 
 #ifdef __cplusplus
+
+#ifdef USE_OPENGLOSD
+#include <vdr/psl-oglosd/oglosd.h>
+#endif
+
 extern "C"
 {
 #endif

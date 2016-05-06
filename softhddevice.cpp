@@ -29,6 +29,10 @@
 #include <vdr/dvbspu.h>
 #include <vdr/shutdown.h>
 
+#ifdef USE_OPENGLOSD
+#include <vdr/psl-oglosd/openglosd.h>
+#endif
+
 #ifdef HAVE_CONFIG
 #include "config.h"
 #endif
@@ -185,6 +189,54 @@ static volatile int DoMakePrimary;	///< switch primary device to this
 static signed char SuspendMode;		///< suspend mode
 
 //////////////////////////////////////////////////////////////////////////////
+
+#ifdef USE_OPENGLOSD
+
+class cVdpauMediator : public IVdpauMediator
+{
+public:
+	virtual void CloseOsd()
+	{
+		OsdClose();
+	}
+	virtual void ActivateOsd();
+	virtual void * GetVDPAUDevice();
+	virtual void * GetVDPAUProcAdress();
+	virtual void * GetVDPAUOutputSurface();
+	virtual void * GetVDPAUProc();
+	virtual bool IsDeviceSuspended()
+	{
+		return SuspendMode != NOT_SUSPENDED;
+	}
+	virtual const char * GetX11DisplayName()
+	{
+		return mX11DisplayName.c_str();
+	}
+	virtual int & MaxSizeGPUImageCache()
+	{
+		return mMaxSizeGPUImageCache;
+	}
+	virtual void SetX11DisplayName(const char * name)
+	{
+		mX11DisplayName = name;
+	}
+	static cVdpauMediator * SingleInstance()
+	{
+		static cVdpauMediator VdpauMediator;
+		return &VdpauMediator;
+	}
+private:
+	std::string mX11DisplayName;
+	int mMaxSizeGPUImageCache;
+	cVdpauMediator()
+	{
+		mMaxSizeGPUImageCache = 128;  ///< maximum size of GPU mem to be used for image caching
+	}
+};
+
+pVMed = cVdpauMediator::SingleInstance();
+
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 //	C Callbacks
@@ -778,6 +830,11 @@ class cMenuSetupSoft:public cMenuSetupPage
 #ifdef USE_SCREENSAVER
     int EnableDPMSatBlackScreen;
 #endif
+
+#ifdef USE_OPENGLOSD
+	int MaxSizeGPUImageCache;
+#endif
+
     /// @}
   private:
      inline cOsdItem * CollapsedItem(const char *, int &, const char * = NULL);
@@ -880,6 +937,9 @@ void cMenuSetupSoft::Create(void)
 	    Add(new cMenuEditIntItem(tr("Osd width"), &OsdWidth, 0, 4096));
 	    Add(new cMenuEditIntItem(tr("Osd height"), &OsdHeight, 0, 4096));
 	}
+#ifdef USE_OPENGLOSD    
+    Add(new cMenuEditIntItem(tr("GPU mem used for image caching (MB)"), &MaxSizeGPUImageCache, 0, 4000));
+#endif
 	//
 	//	suspend
 	//
@@ -1222,6 +1282,10 @@ cMenuSetupSoft::cMenuSetupSoft(void)
     EnableDPMSatBlackScreen = ConfigEnableDPMSatBlackScreen;
 #endif
 
+#ifdef USE_OPENGLOSD
+    MaxSizeGPUImageCache = pVMed->MaxSizeGPUImageCache();
+#endif
+
     Create();
 }
 
@@ -1397,6 +1461,11 @@ void cMenuSetupSoft::Store(void)
     SetupStore("EnableDPMSatBlackScreen", ConfigEnableDPMSatBlackScreen =
 	EnableDPMSatBlackScreen);
     SetDPMSatBlackScreen(ConfigEnableDPMSatBlackScreen);
+#endif
+
+#ifdef USE_OPENGLOSD
+    SetupStore("MaxSizeGPUImageCache", pVMed->MaxSizeGPUImageCache() =
+    MaxSizeGPUImageCache);
 #endif
 }
 
@@ -2327,8 +2396,11 @@ void cSoftHdDevice::MakePrimaryDevice(bool on)
 
     cDevice::MakePrimaryDevice(on);
     if (on) {
+#ifdef USE_OPENGLOSD
+	new cOglOsdProvider();
+#else
 	new cSoftOsdProvider();
-
+#endif
 	if (SuspendMode == SUSPEND_DETACHED) {
 	    Resume();
 	    SuspendMode = NOT_SUSPENDED;
@@ -3296,6 +3368,13 @@ bool cPluginSoftHdDevice::SetupParse(const char *name, const char *value)
 	ConfigEnableDPMSatBlackScreen = atoi(value);
 	SetDPMSatBlackScreen(ConfigEnableDPMSatBlackScreen);
 	return true;
+    }
+#endif
+
+#ifdef USE_OPENGLOSD
+    if (!strcasecmp(name, "MaxSizeGPUImageCache")) {
+    pVMed->MaxSizeGPUImageCache() = atoi(value);
+    return true;
     }
 #endif
 

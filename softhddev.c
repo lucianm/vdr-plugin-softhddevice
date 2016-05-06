@@ -63,6 +63,12 @@
 #endif
 #include <pthread.h>
 
+#ifdef __cplusplus
+#ifdef USE_OPENGLOSD
+#include <vdr/psl-oglosd/openglosd.h>
+#endif
+#endif
+
 #include "iatomic.h"			// portable atomic_t
 #include "misc.h"
 #include "softhddev.h"
@@ -3061,6 +3067,9 @@ static void StartXServer(void)
 
     argn = 1;
     if (X11DisplayName) {		// append display name
+#ifdef USE_OPENGLOSD
+	pVMed->SetX11DisplayName(X11DisplayName);
+#endif
 	args[argn++] = X11DisplayName;
 	// export display for childs
 	setenv("DISPLAY", X11DisplayName, 1);

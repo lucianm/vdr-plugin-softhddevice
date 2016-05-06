@@ -21,6 +21,8 @@ VDPAU ?= $(shell pkg-config --exists vdpau && echo 1)
 VAAPI ?= $(shell pkg-config --exists libva && echo 1)
     # support glx output
 OPENGL ?= $(shell pkg-config --exists gl glu && echo 1)
+    # OpenGL OSD
+OPENGLOSD ?= $(shell pkg-config --exists vdr-psl-oglosd && echo 1)
     # screensaver disable/enable
 SCREENSAVER ?= 1
     # use ffmpeg libswresample
@@ -44,7 +46,9 @@ CONFIG += -DH264_EOS_TRICKSPEED		# insert seq end packets for trickspeed
 #CONFIG += -DUSE_BITMAP			# VDPAU, use bitmap surface for OSD
 CONFIG += -DUSE_VDR_SPU			# use VDR SPU decoder.
 #CONFIG += -DUSE_SOFTLIMIT		# (tobe removed) limit the buffer fill
-
+ifeq ($(OPENGLOSD),1)
+CONFIG += -DUSE_OPENGLOSD			# OPENGLOSD support
+endif
 ### The version number of this plugin (taken from the main source file):
 
 VERSION = $(shell grep 'static const char \*const VERSION *=' $(PLUGIN).cpp | awk '{ print $$7 }' | sed -e 's/[";]//g')
@@ -59,6 +63,10 @@ LOCDIR = $(call PKGCFG,locdir)
 PLGCFG = $(call PKGCFG,plgcfg)
 #
 TMPDIR ?= /tmp
+
+ifeq ($(OPENGLOSD),1)
+PKGCFGoglosd = $(if $(VDRDIR),$(shell pkg-config --variable=$(1) $(VDRDIR)/vdr-psl-oglosd.pc),$(shell pkg-config --variable=$(1) vdr-psl-oglosd || pkg-config --variable=$(1) ../../../vdr-psl-oglosd.pc))
+endif
 
 ### The compiler options:
 
@@ -137,6 +145,11 @@ endif
 _CFLAGS += $(shell pkg-config --cflags libavcodec x11 x11-xcb xcb xcb-icccm)
 LIBS += -lrt $(shell pkg-config --libs libavcodec x11 x11-xcb xcb xcb-icccm)
 
+ifeq ($(OPENGLOSD),1)
+_CFLAGS += $(shell pkg-config --cflags vdr-psl-oglosd)
+LIBS += $(call pkg-config --libs vdr-psl-oglosd) $(call PKGCFGoglosd,Libs.private)
+LDFLAGS += $(call PKGCFGoglosd,ldflags)
+endif
 ### Includes and Defines (add further entries here):
 
 INCLUDES +=
